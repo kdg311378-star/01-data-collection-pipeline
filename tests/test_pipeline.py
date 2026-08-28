@@ -1,1 +1,2 @@
-def test_sanity_check(): pass
+def test_sanity_check():
+    pass
