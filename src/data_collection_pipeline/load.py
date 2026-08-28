@@ -15,7 +15,7 @@ CSV 내부 source_page와 parsed_at이 같은 배치를 가리키는지 검증�
 
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -26,61 +26,60 @@ from sqlalchemy import URL, create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-PROCESSED_DIR = PROJECT_DIR / 'data' / 'processed'
-ENV_FILE = PROJECT_DIR / '.env'
+PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
+ENV_FILE = PROJECT_DIR / ".env"
 
-PROCESSED_CSV_PATTERN = 'books_pages_*_processed_*.csv'
+PROCESSED_CSV_PATTERN = "books_pages_*_processed_*.csv"
 PROCESSED_FILE_PATTERN_RE = re.compile(
-    r'^books_pages_(\d{3})_(\d{3})_processed_(\d{8}_\d{6})\.csv$'
+    r"^books_pages_(\d{3})_(\d{3})_processed_(\d{8}_\d{6})\.csv$"
 )
 
 DB_COLUMNS = [
-    'book_id',
-    'title',
-    'price',
-    'rating',
-    'is_available',
-    'detail_url',
-    'source_site',
-    'source_url',
-    'source_page',
-    'parsed_at',
-    'processed_at',
-    'source_file',
-    'price_text',
-    'availability_text',
-    'rating_text',
-    'detail_path',
+    "book_id",
+    "title",
+    "price",
+    "rating",
+    "is_available",
+    "detail_url",
+    "source_site",
+    "source_url",
+    "source_page",
+    "parsed_at",
+    "processed_at",
+    "source_file",
+    "price_text",
+    "availability_text",
+    "rating_text",
+    "detail_path",
 ]
 
 STRING_COLUMNS = [
-    'book_id',
-    'title',
-    'detail_url',
-    'source_site',
-    'source_url',
-    'source_file',
-    'price_text',
-    'availability_text',
-    'rating_text',
-    'detail_path',
+    "book_id",
+    "title",
+    "detail_url",
+    "source_site",
+    "source_url",
+    "source_file",
+    "price_text",
+    "availability_text",
+    "rating_text",
+    "detail_path",
 ]
 
 NOT_NULL_COLUMNS = DB_COLUMNS
 
 REQUIRED_ENV_NAMES = {
-    'DB_HOST',
-    'DB_PORT',
-    'DB_NAME',
-    'DB_USER',
-    'DB_PASSWORD',
+    "DB_HOST",
+    "DB_PORT",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD",
 }
 
 
 CREATE_BOOKS_TABLE_SQL = text(
-    '''
+    """
     CREATE TABLE IF NOT EXISTS books (
         book_id VARCHAR(20) PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
@@ -109,11 +108,11 @@ CREATE_BOOKS_TABLE_SQL = text(
     ENGINE=InnoDB
     DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci
-    '''
+    """
 )
 
 UPSERT_BOOK_SQL = text(
-    '''
+    """
     INSERT INTO books (
         book_id,
         title,
@@ -176,7 +175,7 @@ UPSERT_BOOK_SQL = text(
         rating_text = new.rating_text,
         detail_path = new.detail_path,
         last_checked_at = CURRENT_TIMESTAMP
-    '''
+    """
 )
 
 
@@ -189,7 +188,7 @@ def parse_processed_file_name(file_path: Path) -> tuple[int, int, datetime]:
             페이지 범위와 배치 시각이 포함된 processed CSV 파일 경로
 
     Returns:
-        시작 페이지, 종료 페이지, 배치 시각의 튜플
+        시작 페이지, 종료 페이지, 배치 시각의 튜플 (UTC Aware Datetime)
 
     Raises:
         ValueError:
@@ -200,16 +199,19 @@ def parse_processed_file_name(file_path: Path) -> tuple[int, int, datetime]:
     matched = PROCESSED_FILE_PATTERN_RE.fullmatch(file_path.name)
 
     if matched is None:
-        raise ValueError(f'processed CSV 파일명 형식이 올바르지 않습니다. {file_path.name}')
+        raise ValueError(
+            f"processed CSV 파일명 형식이 올바르지 않습니다. {file_path.name}"
+        )
 
     start_page = int(matched.group(1))
     end_page = int(matched.group(2))
-    batch_at = datetime.strptime(matched.group(3), '%Y%m%d_%H%M%S')
+    batch_at = datetime.strptime(matched.group(3), "%Y%m%d_%H%M%S").replace(
+        tzinfo=timezone.utc
+    )
 
     if start_page > end_page:
         raise ValueError(
-            f'processed CSV의 페이지 범위가 올바르지 않습니다. '
-            f'{start_page}~{end_page}'
+            f"processed CSV의 페이지 범위가 올바르지 않습니다. {start_page}~{end_page}"
         )
 
     return (start_page, end_page, batch_at)
@@ -238,7 +240,7 @@ def find_latest_processed_csv(
     """
 
     if not directory.is_dir():
-        raise FileNotFoundError(f'전처리 데이터 폴더가 없습니다. {directory}')
+        raise FileNotFoundError(f"전처리 데이터 폴더가 없습니다. {directory}")
 
     file_infos: list[tuple[datetime, int, int, Path]] = []
 
@@ -251,7 +253,7 @@ def find_latest_processed_csv(
         file_infos.append((batch_at, start_page, end_page, file_path))
 
     if not file_infos:
-        raise FileNotFoundError('MySQL에 저장할 processed CSV 파일이 없습니다.')
+        raise FileNotFoundError("MySQL에 저장할 processed CSV 파일이 없습니다.")
 
     file_infos.sort(key=lambda item: (item[0], item[2], item[1]))
 
@@ -275,26 +277,26 @@ def load_processed_csv(file_path: Path) -> pd.DataFrame:
     """
 
     if not file_path.is_file():
-        raise FileNotFoundError(f'processed CSV 파일이 없습니다. {file_path}')
+        raise FileNotFoundError(f"processed CSV 파일이 없습니다. {file_path}")
 
     return pd.read_csv(
         file_path,
         dtype={
-            'book_id': 'string',
-            'title': 'string',
-            'rating': 'Int64',
-            'detail_url': 'string',
-            'source_site': 'string',
-            'source_url': 'string',
-            'source_page': 'Int64',
-            'source_file': 'string',
-            'price_text': 'string',
-            'availability_text': 'string',
-            'rating_text': 'string',
-            'detail_path': 'string',
-            'is_available': 'boolean',
+            "book_id": "string",
+            "title": "string",
+            "rating": "Int64",
+            "detail_url": "string",
+            "source_site": "string",
+            "source_url": "string",
+            "source_page": "Int64",
+            "source_file": "string",
+            "price_text": "string",
+            "availability_text": "string",
+            "rating_text": "string",
+            "detail_path": "string",
+            "is_available": "boolean",
         },
-        parse_dates=['parsed_at', 'processed_at'],
+        parse_dates=["parsed_at", "processed_at"],
     )
 
 
@@ -325,14 +327,16 @@ def validate_processed_batch(
             source_page 범위 또는 parsed_at이 파일명의 배치 정보와 다른 경우
     """
 
-    required_columns = {'source_page', 'parsed_at'}
+    required_columns = {"source_page", "parsed_at"}
     missing_columns = required_columns - set(df.columns)
 
     if missing_columns:
-        raise ValueError(f'배치 검증에 필요한 컬럼이 누락되었습니다. {sorted(missing_columns)}')
+        raise ValueError(
+            f"배치 검증에 필요한 컬럼이 누락되었습니다. {sorted(missing_columns)}"
+        )
 
     source_pages = (
-        pd.to_numeric(df['source_page'], errors='coerce')
+        pd.to_numeric(df["source_page"], errors="coerce")
         .dropna()
         .astype(int)
         .sort_values()
@@ -344,22 +348,22 @@ def validate_processed_batch(
 
     if source_pages != expected_pages:
         raise ValueError(
-            f'processed 파일명과 source_page 범위가 다릅니다. '
-            f'파일명 : {expected_pages}, 데이터 : {source_pages}'
+            f"processed 파일명과 source_page 범위가 다릅니다. "
+            f"파일명 : {expected_pages}, 데이터 : {source_pages}"
         )
 
-    parsed_times = pd.to_datetime(df['parsed_at'], errors='coerce').dropna().unique()
+    parsed_times = pd.to_datetime(df["parsed_at"], errors="coerce").dropna().unique()
 
     if len(parsed_times) != 1:
-        raise ValueError('processed CSV의 parsed_at 배치 시각이 하나가 아닙니다.')
+        raise ValueError("processed CSV의 parsed_at 배치 시각이 하나가 아닙니다.")
 
-    parsed_at = pd.Timestamp(parsed_times[0]).to_pydatetime()
+    parsed_at = pd.Timestamp(parsed_times[0]).tz_localize(timezone.utc).to_pydatetime()
 
     if parsed_at != batch_at:
         raise ValueError(
-            f'processed 파일명과 parsed_at 배치 시각이 다릅니다. '
-            f'파일명 : {batch_at:%Y-%m-%d %H:%M:%S}, '
-            f'데이터 : {parsed_at:%Y-%m-%d %H:%M:%S}'
+            f"processed 파일명과 parsed_at 배치 시각이 다릅니다. "
+            f"파일명 : {batch_at:%Y-%m-%d %H:%M:%S}, "
+            f"데이터 : {parsed_at:%Y-%m-%d %H:%M:%S}"
         )
 
 
@@ -382,44 +386,43 @@ def prepare_and_validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     missing_columns = set(DB_COLUMNS) - set(df.columns)
 
     if missing_columns:
-        raise ValueError(f'DB 저장에 필요한 컬럼이 누락되었습니다. {sorted(missing_columns)}')
+        raise ValueError(
+            f"DB 저장에 필요한 컬럼이 누락되었습니다. {sorted(missing_columns)}"
+        )
 
     database_df = df[DB_COLUMNS].copy()
 
     for column in STRING_COLUMNS:
         database_df[column] = (
-            database_df[column]
-            .astype('string')
-            .str.strip()
-            .replace('', pd.NA)
+            database_df[column].astype("string").str.strip().replace("", pd.NA)
         )
 
-    database_df['price'] = pd.to_numeric(
-        database_df['price'],
-        errors='coerce',
-    ).astype('Float64')
+    database_df["price"] = pd.to_numeric(
+        database_df["price"],
+        errors="coerce",
+    ).astype("Float64")
 
-    database_df['rating'] = pd.to_numeric(
-        database_df['rating'],
-        errors='coerce',
-    ).astype('Int64')
+    database_df["rating"] = pd.to_numeric(
+        database_df["rating"],
+        errors="coerce",
+    ).astype("Int64")
 
-    database_df['source_page'] = pd.to_numeric(
-        database_df['source_page'],
-        errors='coerce',
-    ).astype('Int64')
+    database_df["source_page"] = pd.to_numeric(
+        database_df["source_page"],
+        errors="coerce",
+    ).astype("Int64")
 
-    database_df['parsed_at'] = pd.to_datetime(
-        database_df['parsed_at'],
-        errors='coerce',
+    database_df["parsed_at"] = pd.to_datetime(
+        database_df["parsed_at"],
+        errors="coerce",
     )
 
-    database_df['processed_at'] = pd.to_datetime(
-        database_df['processed_at'],
-        errors='coerce',
+    database_df["processed_at"] = pd.to_datetime(
+        database_df["processed_at"],
+        errors="coerce",
     )
 
-    database_df['is_available'] = database_df['is_available'].astype('boolean')
+    database_df["is_available"] = database_df["is_available"].astype("boolean")
 
     errors: list[str] = []
 
@@ -427,25 +430,25 @@ def prepare_and_validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     invalid_nulls = null_counts[null_counts > 0]
 
     if not invalid_nulls.empty:
-        errors.append(f'필수 컬럼 결측 발생:\n{invalid_nulls.to_string()}')
+        errors.append(f"필수 컬럼 결측 발생:\n{invalid_nulls.to_string()}")
 
-    if database_df['book_id'].duplicated().any():
-        errors.append('중복된 book_id가 존재합니다.')
+    if database_df["book_id"].duplicated().any():
+        errors.append("중복된 book_id가 존재합니다.")
 
-    if database_df['detail_url'].duplicated().any():
-        errors.append('중복된 detail_url이 존재합니다.')
+    if database_df["detail_url"].duplicated().any():
+        errors.append("중복된 detail_url이 존재합니다.")
 
-    if (database_df['price'] <= 0).any():
-        errors.append('유효하지 않은 가격(<= 0)이 존재합니다.')
+    if (database_df["price"] <= 0).any():
+        errors.append("유효하지 않은 가격(<= 0)이 존재합니다.")
 
-    if (~database_df['rating'].between(1, 5)).any():
-        errors.append('유효하지 않은 평점(1~5 범위 벗어남)이 존재합니다.')
+    if (~database_df["rating"].between(1, 5)).any():
+        errors.append("유효하지 않은 평점(1~5 범위 벗어남)이 존재합니다.")
 
-    if (database_df['source_page'] <= 0).any():
-        errors.append('유효하지 않은 페이지 번호(<= 0)가 존재합니다.')
+    if (database_df["source_page"] <= 0).any():
+        errors.append("유효하지 않은 페이지 번호(<= 0)가 존재합니다.")
 
     if errors:
-        raise ValueError('DB 저장 전 데이터 검증 실패\n' + '\n\n'.join(errors))
+        raise ValueError("DB 저장 전 데이터 검증 실패\n" + "\n\n".join(errors))
 
     return database_df
 
@@ -466,24 +469,24 @@ def dataframe_to_database_records(df: pd.DataFrame) -> list[dict[str, Any]]:
 
     records: list[dict[str, Any]] = []
 
-    for row in df.to_dict(orient='records'):
+    for row in df.to_dict(orient="records"):
         record = {
-            'book_id': str(row['book_id']),
-            'title': str(row['title']),
-            'price': Decimal(str(row['price'])).quantize(Decimal('0.01')),
-            'rating': int(row['rating']),
-            'is_available': bool(row['is_available']),
-            'detail_url': str(row['detail_url']),
-            'source_site': str(row['source_site']),
-            'source_url': str(row['source_url']),
-            'source_page': int(row['source_page']),
-            'parsed_at': pd.Timestamp(row['parsed_at']).to_pydatetime(),
-            'processed_at': pd.Timestamp(row['processed_at']).to_pydatetime(),
-            'source_file': str(row['source_file']),
-            'price_text': str(row['price_text']),
-            'availability_text': str(row['availability_text']),
-            'rating_text': str(row['rating_text']),
-            'detail_path': str(row['detail_path']),
+            "book_id": str(row["book_id"]),
+            "title": str(row["title"]),
+            "price": Decimal(str(row["price"])).quantize(Decimal("0.01")),
+            "rating": int(row["rating"]),
+            "is_available": bool(row["is_available"]),
+            "detail_url": str(row["detail_url"]),
+            "source_site": str(row["source_site"]),
+            "source_url": str(row["source_url"]),
+            "source_page": int(row["source_page"]),
+            "parsed_at": pd.Timestamp(row["parsed_at"]).to_pydatetime(),
+            "processed_at": pd.Timestamp(row["processed_at"]).to_pydatetime(),
+            "source_file": str(row["source_file"]),
+            "price_text": str(row["price_text"]),
+            "availability_text": str(row["availability_text"]),
+            "rating_text": str(row["rating_text"]),
+            "detail_path": str(row["detail_path"]),
         }
 
         records.append(record)
@@ -511,30 +514,26 @@ def load_database_config(env_file: Path = ENV_FILE) -> dict[str, str | int]:
     """
 
     if not env_file.is_file():
-        raise FileNotFoundError(f'.env 파일이 없습니다. {env_file}')
+        raise FileNotFoundError(f".env 파일이 없습니다. {env_file}")
 
     load_dotenv(dotenv_path=env_file)
 
-    missing_names = [
-        name
-        for name in REQUIRED_ENV_NAMES
-        if not os.environ.get(name)
-    ]
+    missing_names = [name for name in REQUIRED_ENV_NAMES if not os.environ.get(name)]
 
     if missing_names:
-        raise ValueError(f'필수 환경 변수가 없습니다. {sorted(missing_names)}')
+        raise ValueError(f"필수 환경 변수가 없습니다. {sorted(missing_names)}")
 
     try:
-        port = int(os.environ['DB_PORT'])
+        port = int(os.environ["DB_PORT"])
     except ValueError as error:
-        raise ValueError('DB_PORT는 정수여야 합니다.') from error
+        raise ValueError("DB_PORT는 정수여야 합니다.") from error
 
     return {
-        'host': os.environ['DB_HOST'],
-        'port': port,
-        'database': os.environ['DB_NAME'],
-        'username': os.environ['DB_USER'],
-        'password': os.environ['DB_PASSWORD'],
+        "host": os.environ["DB_HOST"],
+        "port": port,
+        "database": os.environ["DB_NAME"],
+        "username": os.environ["DB_USER"],
+        "password": os.environ["DB_PASSWORD"],
     }
 
 
@@ -551,13 +550,13 @@ def create_mysql_engine(config: dict[str, str | int]) -> Engine:
     """
 
     db_url = URL.create(
-        drivername='mysql+pymysql',
-        username=str(config['username']),
-        password=str(config['password']),
-        host=str(config['host']),
-        port=int(config['port']),
-        database=str(config['database']),
-        query={'charset': 'utf8mb4'},
+        drivername="mysql+pymysql",
+        username=str(config["username"]),
+        password=str(config["password"]),
+        host=str(config["host"]),
+        port=int(config["port"]),
+        database=str(config["database"]),
+        query={"charset": "utf8mb4"},
     )
 
     return create_engine(
@@ -580,21 +579,21 @@ def test_mysql_connection(engine: Engine) -> dict[str, str]:
     """
 
     query = text(
-        '''
+        """
         SELECT
             VERSION() AS ver,
             DATABASE() AS db,
             CURRENT_USER() AS user
-        '''
+        """
     )
 
     with engine.connect() as connection:
         connection_info = connection.execute(query).mappings().one()
 
     return {
-        'mysql_version': str(connection_info['ver']),
-        'database_name': str(connection_info['db']),
-        'current_user': str(connection_info['user']),
+        "mysql_version": str(connection_info["ver"]),
+        "database_name": str(connection_info["db"]),
+        "current_user": str(connection_info["user"]),
     }
 
 
@@ -685,24 +684,24 @@ def run_load(
         create_books_table(engine)
         affected_row_count = upsert_books(engine, records)
 
-        print('=' * 70)
-        print('전처리 도서 데이터 MySQL 저장 결과')
-        print('=' * 70)
+        print("=" * 70)
+        print("전처리 도서 데이터 MySQL 저장 결과")
+        print("=" * 70)
 
-        print(f'입력 CSV : {processed_csv_file.name}')
-        print(f'배치 시각 : {batch_at:%Y-%m-%d %H:%M:%S}')
-        print(f'페이지 범위 : {start_page}~{end_page}')
-        print(f'연결 데이터베이스 : {connection_info["database_name"]}')
-        print(f'MySQL 버전 : {connection_info["mysql_version"]}')
-        print(f'입력 데이터 수 : {len(records)}')
-        print(f'DB 드라이버 영향 행 수 : {affected_row_count}')
+        print(f"입력 CSV : {processed_csv_file.name}")
+        print(f"배치 시각 : {batch_at:%Y-%m-%d %H:%M:%S}")
+        print(f"페이지 범위 : {start_page}~{end_page}")
+        print(f"연결 데이터베이스 : {connection_info['database_name']}")
+        print(f"MySQL 버전 : {connection_info['mysql_version']}")
+        print(f"입력 데이터 수 : {len(records)}")
+        print(f"DB 드라이버 영향 행 수 : {affected_row_count}")
 
         return {
-            'input_file': processed_csv_file.name,
-            'batch_at': batch_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'database_name': connection_info['database_name'],
-            'input_count': len(records),
-            'affected_row_count': affected_row_count,
+            "input_file": processed_csv_file.name,
+            "batch_at": batch_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "database_name": connection_info["database_name"],
+            "input_count": len(records),
+            "affected_row_count": affected_row_count,
         }
 
     finally:
@@ -710,17 +709,16 @@ def run_load(
             engine.dispose()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         run_load()
 
     except SQLAlchemyError as error:
-        print('MySQL 처리 중 오류가 발생했습니다.')
-        print(f'오류 내용 : {error}')
+        print("MySQL 처리 중 오류가 발생했습니다.")
+        print(f"오류 내용 : {error}")
         raise SystemExit(1) from error
 
     except (FileNotFoundError, OSError, ValueError) as error:
-        print('파일 처리 또는 데이터 검증에 실패했습니다.')
-        print(f'오류 내용 : {error}')
+        print("파일 처리 또는 데이터 검증에 실패했습니다.")
+        print(f"오류 내용 : {error}")
         raise SystemExit(1) from error
-

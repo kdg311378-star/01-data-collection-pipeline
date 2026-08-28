@@ -50,15 +50,16 @@ import requests
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.data_collection_pipeline import (
-        run_crawling, 
-        run_extract, 
-        run_preprocess,
-        run_load
-)     
+    run_crawling,
+    run_extract,
+    run_load,
+    run_preprocess,
+)
 
 ## --------------------------------------
 ## 프로젝트 경로 설정
 ## --------------------------------------
+
 
 def main() -> tuple[Path, list[Path], Path, dict[str, int | str]]:
     """
@@ -73,9 +74,9 @@ def main() -> tuple[Path, list[Path], Path, dict[str, int | str]]:
         4. MySQL 저장 결과 요약
     """
 
-    print('=' * 60)
-    print('정적 웹페이지 데이터 수집 파이프라인 시작')
-    print('=' * 60)
+    print("=" * 60)
+    print("정적 웹페이지 데이터 수집 파이프라인 시작")
+    print("=" * 60)
 
     ## 1. Crawling ---------------------------------------------
     raw_batch_dir = run_crawling()
@@ -91,32 +92,31 @@ def main() -> tuple[Path, list[Path], Path, dict[str, int | str]]:
     load_summary = run_load(processed_csv_file)
 
     print()
-    print('>' * 60)
-    print('정적 웹페이지 데이터 수집 파이프라인 완료')
-    print('>' * 60)
+    print(">" * 60)
+    print("정적 웹페이지 데이터 수집 파이프라인 완료")
+    print(">" * 60)
     print()
-    print(f'✔️  raw HTML 배치 폴더 : {raw_batch_dir}')
-    print(f'✔️  parsed CSV 파일 수 : {len(parsed_csv_files)}')
-    print(f'✔️  interim 배치 폴더 : {interim_batch_dir}')
-    print(f'✔️  processed csv 파일 : {processed_csv_file}')
-    print(f'✔️  MySQL 저장 결과 : {load_summary}')
+    print(f"✔️  raw HTML 배치 폴더 : {raw_batch_dir}")
+    print(f"✔️  parsed CSV 파일 수 : {len(parsed_csv_files)}")
+    print(f"✔️  interim 배치 폴더 : {interim_batch_dir}")
+    print(f"✔️  processed csv 파일 : {processed_csv_file}")
+    print(f"✔️  MySQL 저장 결과 : {load_summary}")
 
     return (raw_batch_dir, parsed_csv_files, processed_csv_file, load_summary)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except requests.exceptions.RequestException as error:
         print()
-        print('웹페이지 요청 중 오류가 발생했습니다.')
-        print(f'오류 내용: {error}')
+        print("웹페이지 요청 중 오류가 발생했습니다.")
+        print(f"오류 내용: {error}")
     except SQLAlchemyError as error:
         print()
-        print('MySQL 처리 중 오류가 발생했습니다.')
-        print(f'오류 내용 : {error}')
+        print("MySQL 처리 중 오류가 발생했습니다.")
+        print(f"오류 내용 : {error}")
     except (OSError, ValueError) as error:
         print()
-        print('파일 처리 또는 데이터 변환 중 오류가 발생했습니다.')
-        print(f'오류 내용 : {error}')
-
+        print("파일 처리 또는 데이터 변환 중 오류가 발생했습니다.")
+        print(f"오류 내용 : {error}")

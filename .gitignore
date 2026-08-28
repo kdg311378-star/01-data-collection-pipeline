@@ -1,7 +1,11 @@
 .env
 data/
 docs/
-__pycache__/
-*.py[cod]
 notebooks/
 .venv/
+requirements-dev.txt
+requirments
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/

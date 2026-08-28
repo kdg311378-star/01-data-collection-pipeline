@@ -1,0 +1,29 @@
+[project]
+name = "data-collection-pipeline"
+version = "0.1.0"
+description = "Books to Scrape data collection and staging pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "pandas>=2.0.0",
+    "SQLAlchemy>=2.0.0",
+    "PyMySQL>=1.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+# Ruff 린터 및 포맷터 설정
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "DTZ"]
+ignore = []
+
+# Pytest 테스트 러너 설정
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
